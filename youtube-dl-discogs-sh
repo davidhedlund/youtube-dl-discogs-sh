@@ -1,0 +1,195 @@
+#!/bin/bash
+
+#    This file is part of youtube-dl-discogs-sh
+#    Copyright (C) 2017 David Hedlund
+#
+#    youtube-dl-discogs-sh is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    youtube-dl-discogs-sh is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Settings
+DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+download_dir="$DIR/download";
+min_views=1000;
+min_filesize="1m";
+max_filesize="75m";
+export -p download_dir min_views min_filesize max_filesize
+
+version="0.1";
+operate_text="y";
+operate_download="n";
+
+# Formatting styles
+normal=$(tput sgr0);
+bold=$(tput bold);
+
+echo "
+    youtube-dl-discogs-sh Copyright (C) 2017 David Hedlund
+    This program comes with ABSOLUTELY NO WARRANTY; for details type \`show w'.
+    This is free software, and you are welcome to redistribute it
+    under certain conditions; type \`show c' for details.
+"
+
+
+if [ $UID -eq 0 ]; then echo "$title: WARNING: Running as root is discouraged."; fi
+
+
+########################################
+# Check dependencies
+
+function check_dependency() {
+    
+    if [ ! -f "/usr/bin/$dependency" ]; then
+
+        echo "$dependency not installed";
+        unmet_dependency=true;
+
+    fi
+    
+}
+
+dependency="kid3-cli"; check_dependency
+dependency="curl"; check_dependency
+dependency="youtube-dl"; check_dependency
+
+if [ "$unmet_dependency" = true ]; then
+
+    exit 1
+
+fi
+
+
+########################################
+
+if [ "$1" = "" ]; then
+
+    echo "youtube-dl-discogs-sh: error: You must provide at least one URL.
+
+Usage: dl-youtube URL
+Where URL is the dicogs.com artist link like this: ./youtube-dl-discogs-sh discogs.com/artist/[id]-[artist]
+
+Browser discogs.com, find your artist, and copy the link.
+Example
+
+    ./youtube-dl-discogs-sh discogs.com/artist/15228-Gigi-DAgostino
+
+Type ${bold}man $DIR/doc/man/$title.1.man${normal} to read the manual.
+Type ${bold}$0 --help${normal} to see a list of all options."
+
+    exit 1
+    
+fi
+
+export -p artist_id artist
+
+export -p DIR copyright author title releasedate description_short bugemail email
+case "$1" in
+    --show)
+        if [ "$2" == "w" ]; then echo 'From GNU GPL version 3 paragraphy 15-17.
+
+  15. Disclaimer of Warranty.
+
+  THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY
+APPLICABLE LAW.  EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT
+HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY
+OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO,
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM
+IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
+ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
+
+  16. Limitation of Liability.
+
+  IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
+WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MODIFIES AND/OR CONVEYS
+THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY
+GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE
+USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED TO LOSS OF
+DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD
+PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS),
+EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGES.
+
+  17. Interpretation of Sections 15 and 16.
+
+  If the disclaimer of warranty and limitation of liability provided
+above cannot be given local legal effect according to their terms,
+reviewing courts shall apply local law that most closely approximates
+an absolute waiver of all civil liability in connection with the
+Program, unless a warranty or assumption of liability accompanies a
+copy of the Program in return for a fee.
+'
+        elif [ "$2" == "c" ]; then echo 'For conditions please refer to section TERMS AND CONDITIONS in the file COPYING that comes with this program.'
+        fi
+        exit 1
+        ;;
+    --help)
+        echo "Options:
+  --show w        print Disclaimer of Warranty and exit
+  --show c        Explains TERMS AND CONDITIONS and exit
+  --help          print this help text and exit
+  --version       print program version and exit
+";
+        exit 1
+        ;;
+    --version)
+        echo -e "youtube-dl-discogs-sh $version"
+        exit
+        ;;
+
+esac
+
+
+
+
+clean_url=$(sed "s|http://||; s|https://||; s|www.||;" <<< "$1");
+
+if [[ "$clean_url" =~ ^discogs.com/artist/* ]]; then
+
+    artist_id=$(sed "s|discogs.com/artist/||; s|-|\n|" <<< "$clean_url" | head -n 1);
+    artist=$(sed "s|discogs.com/artist/||; s|-|\n|" <<< "$clean_url" | tail -n 1);
+
+    echo "$clean_url"
+    echo "$artist_id"
+    echo "$artist"
+
+
+    if [ -d "build" ]; then
+
+        rm -fr build # Start with a fresh build
+
+    fi
+
+    mkdir build
+
+    src/discogs-titles
+
+    #############################################################################
+    # Download audio files, legal, gratis, and in free formats.
+
+    if [ "$operate_download" == "y" ]; then
+
+        while read -r download_tracks; do
+
+            echo "$download_tracks will be used"
+            src/youtube-dl--list
+            cd "$DIR" || exit
+
+        done < build/artists_list.var
+
+    fi
+
+fi
+
+
+exit 0

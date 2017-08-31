@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+
+#    This file is part of youtube-dl-discogs
+#    Copyright (C) 2017 David Hedlund
+#
+#    youtube-dl-discogs is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    youtube-dl-discogs is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Artist with special characters:
+# ' = Gigi D'Agostino
+# (3) = Koan (3)
+
+OLDIFS="$IFS"  # save it
+IFS="" # don't split on any white space
+
+# Disclaimer: "Run this script with the same option at least twice"
+
+if [ ! -d "build/youtube-dl--list" ]; then
+
+    mkdir -p build/youtube-dl--list
+
+fi
+
+cd build/youtube-dl--list/
+
+echo "" > check.txt; # clear the file if it already exist
+
+while read youtube_dl; do
+
+    rm -f collect*
+    
+
+    # Replace single quote with '\'' so it can be used
+    printf "$youtube_dl" | sed 's|__tmp_single_quote__|'\''\\'\'''\''|g;' > discogs.var
+    source discogs.var
+
+    # Discogs clean up when direct copy from non-API version of the website
+    # You have to escape the parenthesis, in python they are used to make a group inside the regex.
+    artist=$(printf $artist | sed "s|^ ||; s| / | , |g; s|–||g; s|*||g; s| $||; s| ([0-9])||g;"); #  ([0-9]) is to remove discogs unique artist name if several with the same name exist
+    discogs_title=$(printf $discogs_title | sed "s|^ ||; s| / | , |g; s|–||g; s|*||g; s| $||;");
+    artist__escaped=$(printf $artist | sed "s|(|\\\(|; s|)|\\\)|;");
+    discogs_title__escaped=$(printf $discogs_title | sed "s|(|\\\(|; s|)|\\\)|; s|'|\\\'|;");
+    [ ! -z "$label" ] && label=$(printf "$label" | sed "s|^ ||; s| / | , |g; s|–||g; s|*||g; s| $||;");
+    [ ! -z "$genre" ] && genre=$(printf "$genre" | sed "s|^ ||; s| / | , |g; s|–||g; s|*||g; s| $||;");
+    file__escaped="$artist__escaped - $discogs_title__escaped";
+
+    youtube_dl() { printf -vl '%*s' "$1"; printf '%s\n' "${l// /#}"; } ; youtube_dl "$(tput cols)"
+
+    printf '%b' "Title:\t\t\"$artist - $discogs_title\"";
+
+    function downloaded {
+        if [ "$(find "$download_dir" -name "$file__escaped.opus" -print -quit)" ]; then
+
+            status__find="exit"
+
+        else
+
+            status__find="download"
+
+        fi
+    }
+    downloaded
+
+
+
+    if grep --quiet "$artist - $discogs_title" check.txt; then printf '%b' "\nProcessed:\tYes"; status__processed="exit";
+    else printf '%b' "\nProcessed:\tNo"; echo "$artist - $discogs_title" >> check.txt; status__processed="download"; fi
+
+    if [  $status__find = "exit" ]; then printf '%b' "\nExist:\t\tYes\n";
+    elif [  $status__find = "download" ]; then printf '%b' "\nExist:\t\tNo\n"; fi
+
+    if [[ $status__processed = "download" && $status__find = "download" ]]; then
+
+
+        # Estimated 2/3 of youtube files may be downloaded this way
+        # If you run ytsearch:foo \(bar\) it means you want to search exactly "foo \(bar\)" not "foo (bar)", you only have to escape the parenthesis in the --match-title option.
+
+        # Collect IDs
+        youtube-dl "ytsearch:$artist - $discogs_title" -f 251 --get-id --no-playlist --ignore-errors --min-filesize $min_filesize --max-filesize $max_filesize --min-views $min_views --match-title ^"$artist - $discogs_title"$ >> collect.id
+
+        if [ -s collect.id ]; then
+            youtube_discogs_title_exact="Yes"
+
+
+            while read youtube_dl2; do
+
+                # --add-metadata does not work on WebM - https://github.com/rg3/youtube-dl/issues/2368
+                youtube-dl $youtube_dl2 -j > discogs.json
+                cat discogs.json | sed 's/, "/\n&/g; s|, "||g; s|": |=|g' > collect_2.json
+                grep ^view_count= collect_2.json > collect_3.var
+                grep ^like_count= collect_2.json >> collect_3.var
+                grep ^dislike_count= collect_2.json >> collect_3.var
+                grep ^title= collect_2.json >> collect_3.var
+                grep ^id= collect_2.json >> collect_3.var
+                sed -i '{:q;N;s/\n/; /g;t q};' collect_3.var
+                cat collect_3.var >> collect_4_all.var
+                sed -i "s|view_count=||g;" collect_4_all.var
+                cat collect_4_all.var | sort -nr > collect_5_all.var
+                sed -i "s|^|view_count=|g; s|$|;|g" collect_5_all.var
+                sed -i "s| id=\"0\"\}\];||g" collect_5_all.var
+                
+            done < collect.id
+
+
+
+
+            while read youtube_dl3; do
+
+                downloaded
+
+                if [ $status__find = "download" ]; then
+
+
+                    printf "$youtube_dl3" > collect.var
+                    source collect.var
+
+                    
+                    vote_count=$(echo "($like_count+$dislike_count)" | bc)
+                    vote_percentage=$(awk -v vote_count=$vote_count -v view_count=$view_count 'BEGIN{printf("%.2f\n", 100*(vote_count/view_count))}')
+
+                    ##############################################################################################################################################################################################################################################################################
+                    # Likes:dislikes ratio
+
+                    if [ ! -z "$dislike_count" ]; then
+
+                        if [ "$dislike_count" = 0 ]; then
+                            vorbiscomment_comment__like_count_dislikes_ratio=$like_count;
+                        else
+                            [ "$like_count" -gt 0 ] && [ "$dislike_count" -gt 0 ] && vorbiscomment_comment__like_count_dislikes_ratio=$(echo "($like_count/$dislike_count+0.5)/1" | bc)
+                        fi
+
+                    fi
+
+
+                    ##############################################################################################################################################################################################################################################################################
+                    # Download
+
+                    if [ $vorbiscomment_comment__like_count_dislikes_ratio -lt 10 ]; then
+
+                        printf '%b' "Passed ratio:\tNo\n";
+
+                    else
+
+                        printf '%b' "Passed ratio:\tYes\n------------------------------------------------------------\n";
+
+                        youtube-dl --extract-audio --audio-format opus --audio-quality 0 --ignore-errors -o "$artist - $discogs_title.%(ext)s" $id
+
+                        if [ ! -z "$view_count" ]; then
+
+                            # Some ASCII art ;)
+                            if [ $view_count -lt 10 ]; then view_count__sort_zero="000000000";
+                            elif [ $view_count -lt 100 ]; then view_count__sort_zero="00000000";
+                            elif [ $view_count -lt 1000 ]; then view_count__sort_zero="0000000";
+                            elif [ $view_count -lt 10000 ]; then view_count__sort_zero="000000";
+                            elif [ $view_count -lt 100000 ]; then view_count__sort_zero="00000";
+                            elif [ $view_count -lt 1000000 ]; then view_count__sort_zero="0000";
+                            elif [ $view_count -lt 10000000 ]; then view_count__sort_zero="000";
+                            elif [ $view_count -lt 100000000 ]; then view_count__sort_zero="00";
+                            elif [ $view_count -lt 1000000000 ]; then view_count__sort_zero="0"; fi
+
+                        fi
+
+                        [ ! -z "$view_count" ] && vorbiscomment_comment__view_count="$view_count__sort_zero$view_count YouTube views"; # Avoid new youtube_dl at the begining as we want to be able to sort by view in the comment field in playlist
+                        [ ! -z "$label" ] && vorbiscomment_comment__label="
+Label: $label";
+
+
+                        #######################################################
+
+                        youtube_file="$(find . -name *.opus | head -1)";
+                        s="${youtube_file##*/}";
+                        extension="${youtube_file##*.}";
+
+                        #Youtube ID will display asymetrical so using $id-$title in Album wont have youtube_dlar effect in sort lists
+
+			# kid-cli can edit Opus. vorbiscomment cannot do that.
+                        kid3-cli -c "set artist \"$artist\"" -c "set title \"$title\"" -c "set year \"$year\"" -c "set genre \"$genre\"" -c "set tracknumber \"$vorbiscomment_comment__like_count_dislikes_ratio\"" -c "set discnumber \"$vote_count\"" -c "set composer \"$composer\"" -c "set album \"$album\"" -c "set comment \"$view_count
+YouTube info:
+  Embed this YouTube video on your website: <iframe title=\\\"YouTube video player\\\" class=\\\"youtube-player\\\" type=\\\"text/html\\\" width=\\\"640\\\" height=\\\"390\\\" src=\\\"http://www.youtube.com/embed/$id\\\" frameborder=\\\"0\\\" allowFullScreen></iframe>
+  View count: See top of this comment
+  like:dislikes ratio or likes: See Track
+  Vote count: See Disc
+  Vote %: See Composer
+  Like count: $like_count
+  Dislike count: $dislike_count
+  YouTube ID/title: See Album
+License: Standard YouTube License
+Exact matched of discogs and YoutTube title: $youtube_discogs_title_exact
+Music database used for tagging: Discogs$vorbiscomment_comment__label\"" "$(find . -name *.opus | head -1)"
+
+                        kid3-cli -c get "$(find . -name *.opus)"
+
+                        mv "$youtube_file" "$download_dir"
+
+
+                    fi
+
+
+                fi
+
+            done < collect_5_all.var
+
+
+
+        else
+            youtube_discogs_title_exact="No"
+        fi
+
+        printf '%b\n' "Passed $min_views views:\t$youtube_discogs_title_exact\n";
+
+
+
+
+    fi
+
+done < $DIR/build/discogs/all_tracks-variables.txt
+
+IFS=$OLDIFS # restore IFS

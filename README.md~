@@ -37,6 +37,12 @@ Gigi D'Agostino
   YouTube channel: https://www.youtube.com/channel/UC7Sqfp5sOFUI4436LBoB_JQ
   Discogs entry: http://www.discogs.com/artist/15228-Gigi-DAgostino
 
+# Technical procedures
+The user configure which artists that the program should search. Then the artists discography are downloaded from discogs.com. The JSON data is extracted with parseJSON which then is compiled into a uniqe list of all songs the artist have released.
+
+This list is used by a second script, a youtube-dl plugin that first gather the youtube video IDs for the songs. Then the plugin download the video files that contain these songs if the meta data match the requirements in the configuration. The audio is then extracted from the video files to OGG format (or other free formats) with youtube-dl which then insert its meta data with vorbiscomment. It puts things like like ratio in the Track.
+
+
 # Inbuilt packages
 
 This software comes with

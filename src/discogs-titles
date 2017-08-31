@@ -1,0 +1,229 @@
+#!/usr/bin/env bash
+
+#    This file is part of youtube-dl-discogs-sh
+#    Copyright (C) 2017 David Hedlund
+#
+#    youtube-dl-discogs-sh is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    youtube-dl-discogs-sh is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+OLDIFS="$IFS"  # save it
+IFS="" # don't split on any white space
+
+##############################################################################
+# Releases
+
+mkdir build/discogs
+cd build/discogs/ || exit
+
+cp -a "$DIR/src/bashlib" "$DIR/src/parseJSON-sh" .
+
+curl -s "https://api.discogs.com/artists/$artist_id/releases" --user-agent "FooBarApp/3.0" | python -mjson.tool > release_urls
+
+sed -i ':a;N;$!ba;s/,\n            "role": /; role=/g' release_urls
+grep "role=\"Main\"" release_urls > tmp && mv tmp release_urls.var
+sed -i "s|\"resource_url\": |resource_url=|g; s|, |;|g" release_urls.var
+
+function test_urls {
+    echo "resource_url=https://api.discogs.com/releases/75247
+resource_url=https://api.discogs.com/masters/119495
+resource_url=https://api.discogs.com/masters/498247
+resource_url=https://api.discogs.com/releases/121807" > release_urls.var
+}
+#test_urls
+
+
+##########################################################################################
+# Get genres of the whole release as this is not possible from https://api.discogs.com/artists/4513/releases
+
+function tracks {
+    #rm -f tmp
+    rm -f all_tracks.txt tmp
+
+    while read -r discogs_titles; do
+
+        rm -f all_tracks.txt
+        
+        echo "$discogs_titles" > tmp && source tmp
+
+	# Discogs general developer information: "Your application must provide a User-Agent string that identifies itself – preferably something that follows RFC 1945." - https://www.discogs.com/developers/
+        wget -U "MyDiscogsClient/1.0 +http://mydiscogsclient.org" -O release_info.json "$resource_url"
+
+
+        
+        # fix minor bug in "notes" before parsing. bug issued at https://www.discogs.com/support/view/2163857-r10?m=RC5ylYKXodXnff5lrFA0SQ
+        if grep --quiet '\"notes\"' release_info.json; then
+
+            sed -i "s|\"notes|\n&|g; s|\", \"identifiers|\n\"identifiers|g" release_info.json
+            sed -i '/"notes"/d;' release_info.json
+            sed -i '{:q;N;s/\n//g;t q};' release_info.json
+
+        fi
+
+        ./parseJSON-sh < release_info.json > release_info.var
+
+
+        # Make useful variables
+        cp -a release_info.var release_info_2.var
+        sed -i "
+s|^.||g;
+s|#|_|g;
+s|=|&\"|g;
+s|$|\"|g;
+" release_info_2.var
+
+        
+        while IFS= read -r discogs_titles; do l=${discogs_titles%%=*}; printf '%s%s\n' "${l//./_}" "${discogs_titles#$l}" >> tmp; done < release_info_2.var
+
+       
+        mv tmp release_info_2.var
+        #perl -pe 's/a(?=.*b)/_/g' -i release_info_2.var
+        # This replace "." with "_" as long as they occur somewhere before "="
+
+        sed -i "/^videos/d; /^images/d;" release_info_2.var
+
+        
+        source release_info_2.var
+
+
+     
+        #40 track long CD: http://www.discogs.com/Koan-The-Signs-Entanglement/master/357275
+        
+        function gt {
+
+           
+            # Sort by year as this will indicate when a track was first released for vorbiscomment field Year
+            echo "sort_by=\"$artist - $year - $discogs_title\"; artist=\"$artist\"; discogs_title=\"$discogs_title\"; year=\"$year\"; genre=\"$genres_0: $styles_0 $styles_1\"; label=\"$labels_0_name\"; resource_url=\"$resource_url\";" >> tracks.txt
+#            sed -i "s|'|'\\\''|g" tracks.txt; # to make variables output their singleqoute correctly
+        }
+
+        if [ ! -z "$tracklist_0_artists_0_name" ]; then artist="$tracklist_0_artists_0_name"; discogs_title="$tracklist_0_title"; gt; fi
+        if [ ! -z "$tracklist_1_artists_0_name" ]; then artist="$tracklist_1_artists_0_name"; discogs_title="$tracklist_1_title"; gt; fi
+        if [ ! -z "$tracklist_2_artists_0_name" ]; then artist="$tracklist_2_artists_0_name"; discogs_title="$tracklist_2_title"; gt; fi
+        if [ ! -z "$tracklist_3_artists_0_name" ]; then artist="$tracklist_3_artists_0_name"; discogs_title="$tracklist_3_title"; gt; fi
+        if [ ! -z "$tracklist_4_artists_0_name" ]; then artist="$tracklist_4_artists_0_name"; discogs_title="$tracklist_4_title"; gt; fi
+        if [ ! -z "$tracklist_5_artists_0_name" ]; then artist="$tracklist_5_artists_0_name"; discogs_title="$tracklist_5_title"; gt; fi
+        if [ ! -z "$tracklist_6_artists_0_name" ]; then artist="$tracklist_6_artists_0_name"; discogs_title="$tracklist_6_title"; gt; fi
+        if [ ! -z "$tracklist_7_artists_0_name" ]; then artist="$tracklist_7_artists_0_name"; discogs_title="$tracklist_7_title"; gt; fi
+        if [ ! -z "$tracklist_8_artists_0_name" ]; then artist="$tracklist_8_artists_0_name"; discogs_title="$tracklist_8_title"; gt; fi
+        if [ ! -z "$tracklist_9_artists_0_name" ]; then artist="$tracklist_9_artists_0_name"; discogs_title="$tracklist_9_title"; gt; fi
+        if [ ! -z "$tracklist_10_artists_0_name" ]; then artist="$tracklist_10_artists_0_name"; discogs_title="$tracklist_10_title"; gt; fi
+        if [ ! -z "$tracklist_11_artists_0_name" ]; then artist="$tracklist_11_artists_0_name"; discogs_title="$tracklist_11_title"; gt; fi
+        if [ ! -z "$tracklist_12_artists_0_name" ]; then artist="$tracklist_12_artists_0_name"; discogs_title="$tracklist_12_title"; gt; fi
+        if [ ! -z "$tracklist_13_artists_0_name" ]; then artist="$tracklist_13_artists_0_name"; discogs_title="$tracklist_13_title"; gt; fi
+        if [ ! -z "$tracklist_14_artists_0_name" ]; then artist="$tracklist_14_artists_0_name"; discogs_title="$tracklist_14_title"; gt; fi
+        if [ ! -z "$tracklist_15_artists_0_name" ]; then artist="$tracklist_15_artists_0_name"; discogs_title="$tracklist_15_title"; gt; fi
+        if [ ! -z "$tracklist_16_artists_0_name" ]; then artist="$tracklist_16_artists_0_name"; discogs_title="$tracklist_16_title"; gt; fi
+        if [ ! -z "$tracklist_17_artists_0_name" ]; then artist="$tracklist_17_artists_0_name"; discogs_title="$tracklist_17_title"; gt; fi
+        if [ ! -z "$tracklist_18_artists_0_name" ]; then artist="$tracklist_18_artists_0_name"; discogs_title="$tracklist_18_title"; gt; fi
+        if [ ! -z "$tracklist_19_artists_0_name" ]; then artist="$tracklist_19_artists_0_name"; discogs_title="$tracklist_19_title"; gt; fi
+        if [ ! -z "$tracklist_20_artists_0_name" ]; then artist="$tracklist_20_artists_0_name"; discogs_title="$tracklist_20_title"; gt; fi
+        if [ ! -z "$tracklist_21_artists_0_name" ]; then artist="$tracklist_21_artists_0_name"; discogs_title="$tracklist_21_title"; gt; fi
+        if [ ! -z "$tracklist_22_artists_0_name" ]; then artist="$tracklist_22_artists_0_name"; discogs_title="$tracklist_22_title"; gt; fi
+        if [ ! -z "$tracklist_23_artists_0_name" ]; then artist="$tracklist_23_artists_0_name"; discogs_title="$tracklist_23_title"; gt; fi
+        if [ ! -z "$tracklist_24_artists_0_name" ]; then artist="$tracklist_24_artists_0_name"; discogs_title="$tracklist_24_title"; gt; fi
+        if [ ! -z "$tracklist_25_artists_0_name" ]; then artist="$tracklist_25_artists_0_name"; discogs_title="$tracklist_25_title"; gt; fi
+        if [ ! -z "$tracklist_26_artists_0_name" ]; then artist="$tracklist_26_artists_0_name"; discogs_title="$tracklist_26_title"; gt; fi
+        if [ ! -z "$tracklist_27_artists_0_name" ]; then artist="$tracklist_27_artists_0_name"; discogs_title="$tracklist_27_title"; gt; fi
+        if [ ! -z "$tracklist_28_artists_0_name" ]; then artist="$tracklist_28_artists_0_name"; discogs_title="$tracklist_28_title"; gt; fi
+        if [ ! -z "$tracklist_29_artists_0_name" ]; then artist="$tracklist_29_artists_0_name"; discogs_title="$tracklist_29_title"; gt; fi
+        if [ ! -z "$tracklist_30_artists_0_name" ]; then artist="$tracklist_30_artists_0_name"; discogs_title="$tracklist_30_title"; gt; fi
+        if [ ! -z "$tracklist_31_artists_0_name" ]; then artist="$tracklist_31_artists_0_name"; discogs_title="$tracklist_31_title"; gt; fi
+        if [ ! -z "$tracklist_32_artists_0_name" ]; then artist="$tracklist_32_artists_0_name"; discogs_title="$tracklist_32_title"; gt; fi
+        if [ ! -z "$tracklist_33_artists_0_name" ]; then artist="$tracklist_33_artists_0_name"; discogs_title="$tracklist_33_title"; gt; fi
+        if [ ! -z "$tracklist_34_artists_0_name" ]; then artist="$tracklist_34_artists_0_name"; discogs_title="$tracklist_34_title"; gt; fi
+        if [ ! -z "$tracklist_35_artists_0_name" ]; then artist="$tracklist_35_artists_0_name"; discogs_title="$tracklist_35_title"; gt; fi
+        if [ ! -z "$tracklist_36_artists_0_name" ]; then artist="$tracklist_36_artists_0_name"; discogs_title="$tracklist_36_title"; gt; fi
+        if [ ! -z "$tracklist_37_artists_0_name" ]; then artist="$tracklist_37_artists_0_name"; discogs_title="$tracklist_37_title"; gt; fi
+        if [ ! -z "$tracklist_38_artists_0_name" ]; then artist="$tracklist_38_artists_0_name"; discogs_title="$tracklist_38_title"; gt; fi
+        if [ ! -z "$tracklist_39_artists_0_name" ]; then artist="$tracklist_39_artists_0_name"; discogs_title="$tracklist_39_title"; gt; fi
+        if [ ! -z "$tracklist_40_artists_0_name" ]; then artist="$tracklist_40_artists_0_name"; discogs_title="$tracklist_40_title"; gt; fi
+
+        if [ -z "$discogs_title" ]; then
+
+            if [ ! -z "$tracklist_0_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_0_title"; gt; fi
+            if [ ! -z "$tracklist_1_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_1_title"; gt; fi
+            if [ ! -z "$tracklist_2_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_2_title"; gt; fi
+            if [ ! -z "$tracklist_3_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_3_title"; gt; fi
+            if [ ! -z "$tracklist_4_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_4_title"; gt; fi
+            if [ ! -z "$tracklist_5_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_5_title"; gt; fi
+            if [ ! -z "$tracklist_6_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_6_title"; gt; fi
+            if [ ! -z "$tracklist_7_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_7_title"; gt; fi
+            if [ ! -z "$tracklist_8_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_8_title"; gt; fi
+            if [ ! -z "$tracklist_9_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_9_title"; gt; fi
+            if [ ! -z "$tracklist_10_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_10_title"; gt; fi
+            if [ ! -z "$tracklist_11_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_11_title"; gt; fi
+            if [ ! -z "$tracklist_12_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_12_title"; gt; fi
+            if [ ! -z "$tracklist_13_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_13_title"; gt; fi
+            if [ ! -z "$tracklist_14_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_14_title"; gt; fi
+            if [ ! -z "$tracklist_15_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_15_title"; gt; fi
+            if [ ! -z "$tracklist_16_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_16_title"; gt; fi
+            if [ ! -z "$tracklist_17_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_17_title"; gt; fi
+            if [ ! -z "$tracklist_18_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_18_title"; gt; fi
+            if [ ! -z "$tracklist_19_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_19_title"; gt; fi
+            if [ ! -z "$tracklist_20_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_20_title"; gt; fi
+            if [ ! -z "$tracklist_21_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_21_title"; gt; fi
+            if [ ! -z "$tracklist_22_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_22_title"; gt; fi
+            if [ ! -z "$tracklist_23_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_23_title"; gt; fi
+            if [ ! -z "$tracklist_24_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_24_title"; gt; fi
+            if [ ! -z "$tracklist_25_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_25_title"; gt; fi
+            if [ ! -z "$tracklist_26_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_26_title"; gt; fi
+            if [ ! -z "$tracklist_27_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_27_title"; gt; fi
+            if [ ! -z "$tracklist_28_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_28_title"; gt; fi
+            if [ ! -z "$tracklist_29_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_29_title"; gt; fi
+            if [ ! -z "$tracklist_30_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_30_title"; gt; fi
+            if [ ! -z "$tracklist_31_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_31_title"; gt; fi
+            if [ ! -z "$tracklist_32_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_32_title"; gt; fi
+            if [ ! -z "$tracklist_33_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_33_title"; gt; fi
+            if [ ! -z "$tracklist_34_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_34_title"; gt; fi
+            if [ ! -z "$tracklist_35_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_35_title"; gt; fi
+            if [ ! -z "$tracklist_36_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_36_title"; gt; fi
+            if [ ! -z "$tracklist_37_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_37_title"; gt; fi
+            if [ ! -z "$tracklist_38_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_38_title"; gt; fi
+            if [ ! -z "$tracklist_39_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_39_title"; gt; fi
+            if [ ! -z "$tracklist_40_title" ]; then artist="$artists_0_name"; discogs_title="$tracklist_40_title"; gt; fi
+
+        fi
+
+        discogs_titles() { printf -vl '%*s' "$1"; printf '%s\n' "${l// /#}"; } ; discogs_titles "$(tput cols)"
+        echo "$artists_0_name - $title ($year), $resource_url. $genres_0: $styles_0 $styles_1"
+        printf '%b' "\n"
+        sed -i "s|=\"|=\'|g; s|\";|\';|g;" tracks.txt
+
+        source tracks.txt # Validation
+        cat tracks.txt
+        cat tracks.txt >> all_tracks.txt
+
+        # or releases like https://api.discogs.com/masters/101963 wont work
+        unset "${!tracklist_@}"
+        #unset artist discogs_title
+
+    done < release_urls.var
+}
+tracks
+
+if [ -f "all_tracks.txt" ]; then
+
+    grep "$artists_0_name" all_tracks.txt >> all_tracks.txt-tmp0 # removes unrelated artist songs
+    sort all_tracks.txt-tmp0 > all_tracks.txt-tmp1
+    uniq all_tracks.txt-tmp1 > all_tracks-variables.txt
+
+    # First replace single quotes used as delimeters
+    sed -i "s|='|=__tmp_delimeter__|g; s|';|__tmp_delimeter__;|g" all_tracks-variables.txt
+    # Replace single quote with '\'' so it can be used
+    sed -i "s|'|__tmp_single_quote__|g" all_tracks-variables.txt
+    # Restore single quotes used as delimeters
+    sed -i "s|=__tmp_delimeter__|='|g; s|__tmp_delimeter__;|';|g" all_tracks-variables.txt
+  
+fi
+
+IFS=$OLDIFS # restore IFS
