@@ -1,7 +1,7 @@
 Mass download music from your favorite artists found on YouTube. -- gratis, and in free formats.
 
 # Is this legal?
-I don't know.
+I don't know. However, this program has never been popular and it's full of bugs so it's not a significant threat to the music industry.
 
 # Will this project survive?
 YouTube Music rivals with Spotify so it's possible that YouTube will remove gratis music streaming within a few years: https://www.digitalmusicnews.com/2017/08/21/music-industry-free-streaming-spotify/
