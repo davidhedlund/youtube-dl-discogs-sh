@@ -1,5 +1,10 @@
-Mass download music from your favorite artists found on YouTube. -- legally, gratis, and in free formats.
+Mass download music from your favorite artists found on YouTube. -- gratis, and in free formats.
 
+# Is this legal?
+I don't know.
+
+# Will this project survive?
+YouTube Music rivals with Spotify so it's possible that YouTube will remove gratis music streaming within a few years: https://www.digitalmusicnews.com/2017/08/21/music-industry-free-streaming-spotify/
 
 # What is the primary goal with this project?
 
