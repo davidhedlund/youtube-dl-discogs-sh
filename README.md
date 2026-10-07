@@ -22,7 +22,7 @@ I don't want the administrative workload coming with donations. I don't want the
 
 # Is this really legal?
 
-Yes, both YouTube and Discogs are llegal, therfore its legal to parsing Discogs to download track lists from YouTube.
+Yes, both YouTube and Discogs are legal, therfore its legal to parsing Discogs to download track lists from YouTube.
 
 However, I warn anyone to make huge profits by making derivates of this project. Grooveshark faced copyright issues and, the company could have been liable for up to $736 million in damages, then people died:
 * Grooveshark Co-Founder Josh Greenberg Found Dead At 28: http://techcrunch.com/2015/07/20/grooveshark-co-founder-josh-greenberg-found-dead-at-28/
